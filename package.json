@@ -1,0 +1,29 @@
+{
+  "name": "eventmanager",
+  "version": "1.0.0",
+  "description": "Server to manage event calls",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+	"start" : "node ./index.js"
+  },
+  "author": "asifmm",
+  "license": "ISC",
+  "engines": {
+    "node": "14.16.0"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "moment": "^2.29.1",
+    "socket.io": "^4.0.0",
+    "socket.io-client": "^4.0.0",
+    "ws": "^7.4.4"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.3",
+    "utf-8-validate": "^5.0.4"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.7"
+  }
+}
