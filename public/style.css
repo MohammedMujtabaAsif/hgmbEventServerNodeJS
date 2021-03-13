@@ -1,0 +1,10 @@
+.inputBox {
+    display: inline-block; width: 15%; margin-bottom: 10px; padding: 10px;
+}
+
+.actionBtn {
+    display:block;
+    width: 15%;
+    height: 30px;
+    text-align: center;
+}
