@@ -171,8 +171,10 @@ io.on('connection', socket => {
   });
 
   socket.on('get-appointment-current', (json) => {
+    console.log('user requested active appointment')
     if (events.has(json.event)) {
       let app = getActiveAppointmentForUser(json.event, json.user)
+      console.log(app);
       socket.emit('send-appointment', app);
     } else {
       socket.emit('send-event');
