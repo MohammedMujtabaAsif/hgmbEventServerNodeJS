@@ -26,6 +26,7 @@
     // const minute2 = document.querySelector('#minute2').value;
 
     var socket;
+    let eventid = 10;
     let userid = 1;
     let username = "Jameel"
 
@@ -41,7 +42,7 @@
         socket.close();
       }
 
-      socket = io('ws://localhost:5000', { reconnect: true, transports: ['websocket'] });
+      socket = io('/', { reconnect: true, transports: ['websocket'] });
 
       socket.on('connect', function (socket) {
         console.log('Connected!');
@@ -59,7 +60,7 @@
       }
 
       socket.emit('join-event', {
-        event: 10,
+        event: eventid,
         user: {
           id: userid,
           name: username,
@@ -146,7 +147,7 @@
 
     getAppBtn.onclick = function () {
       socket.emit('get-appointment-current', {
-        event: 10,
+        event: eventid,
         user: userid
       });
 
@@ -156,7 +157,6 @@
           showMessage(app.time);
           showMessage(app.sender.name);
           showMessage(app.recipient.name);
-          showMessage('recieved appointment');
         } else {
           showMessage('No Active Appointment')
         }
