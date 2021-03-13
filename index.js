@@ -3,6 +3,9 @@ const http = require('http');
 const express = require('express');
 const socketio = require('socket.io');
 const moment = require('moment');
+const { connected } = require('process');
+const PORT = process.env.PORT || 5000;
+
 // const {
 //   userJoin,
 //   getCurrentUser,
@@ -18,8 +21,11 @@ events = new Map();
 membersockets = new Map();
 
 // Set static folder
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
+app.use('/socketio', express.static('node_modules/socket.io/client-dist/'));
 
+// Start server on defined port
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 function getEvent(eventid) {
   return events.get(eventid);
@@ -74,6 +80,11 @@ function checkUserAllowed(eventid, userid) {
   return allowed;
 }
 
+function checkUserConnected(eventid, userid) {
+  let connected = getEvent(eventid).userConnected(userid);
+  return connected;
+}
+
 function checkEventExists(eventid) {
   return events.has(eventid);
 }
@@ -110,8 +121,10 @@ io.on('connection', socket => {
       socket.emit('send-event');
     } else {
       if (checkUserAllowed(event, user.id)) {
-        addUserToEvent(event, user, socket.id);
-        console.log('added user: (' + user.id + ') ' + user.name + ' ' + socket.id + ' to event');
+        if (!checkUserConnected(event, user.id)) {
+          addUserToEvent(event, user, socket.id);
+          console.log('added user: (' + user.id + ') ' + user.name + ' ' + socket.id + ' to event');
+        }
       } else {
         console.log('User not allowed to join (' + user.id + ') ' + user.name);
         socket.disconnect();
@@ -123,6 +136,7 @@ io.on('connection', socket => {
       if (!events.has(json.event)) {
 
         event = new Event(json, socket.id);
+        console.log(event);
 
         events.set(json.event, event);
 
@@ -202,10 +216,6 @@ io.on('connection', socket => {
     }
   });
 });
-
-const PORT = process.env.PORT || 3000;
-
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 class User {
   id;
@@ -312,13 +322,14 @@ class Event {
 
   userAllowed(userid) {
     // check user is a part of the event list
-    let allowed = this.users.has(userid);
-    let connected;
-    if (allowed) {
-      // check the user is connected (has a socketid)
-      connected = this.users.get(userid).socketid != null ? true : false;
-    }
+    let isAllowed = this.users.has(userid);
     //test user is a part of the event and they are not connected
-    return allowed && !connected;
+    return isAllowed;
+  }
+
+  userConnected(userid) {
+    // check the user is connected (has a socketid)
+    let isConnected = this.users.get(userid).socketid != null ? true : false;
+    return isConnected;
   }
 }
