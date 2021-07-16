@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-	"start" : "node ./index.js"
+    "start": "node ./index.js"
   },
   "author": "asifmm",
   "license": "ISC",
@@ -15,8 +15,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "moment": "^2.29.1",
-    "socket.io": "^4.0.0",
-    "socket.io-client": "^4.0.0",
+    "superagent": "^6.1.0",
     "ws": "^7.4.4"
   },
   "optionalDependencies": {
