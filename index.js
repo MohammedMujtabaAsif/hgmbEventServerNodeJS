@@ -1,24 +1,15 @@
-const path = require('path');
 const http = require('http');
 const express = require('express');
-const socketio = require('socket.io');
+const WebSocket = require('ws');
 const moment = require('moment');
-const { connected } = require('process');
 const PORT = process.env.PORT || 5000;
-
-// const {
-//   userJoin,
-//   getCurrentUser,
-//   userLeave,
-//   getEventUsers
-// } = require('./users');
+const Event = require('./event.js');
+const ApiRequests = require('./apiRequests.js');
+// Event from 'event.js'
 
 const app = express();
 const server = http.createServer(app);
-const io = socketio(server);
-
-events = new Map();
-membersockets = new Map();
+const wss = new WebSocket.Server({ server });
 
 // Set static folder
 app.use(express.static('public'));
@@ -27,26 +18,212 @@ app.use('/socketio', express.static('node_modules/socket.io/client-dist/'));
 // Start server on defined port
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-function getEvent(eventid) {
-  return events.get(eventid);
+var events = new Map();
+var usersockets = new Map();
+
+wss.on('connection', function connection(ws, req) {
+  // var api = new ApiRequests('');
+  // var eventData = api.getActiveEvent().then((val) => { console.log('api req'); console.log(val) });
+  // console.log(eventData);
+  // var userData = api.getUser();
+  // console.log(userData);
+
+
+  // A method to send events with a specific type so they can be differentiated by the client
+  ws.message = function message(type, data) {
+    console.log('sending message:');
+    console.log(`type: ${type}`);
+    console.log(data);
+    ws.send(JSON.stringify({ type: type, data: data }));
+  }
+
+  let socketid = req.headers['sec-websocket-key'];
+  console.log('user connected with socketid: ' + socketid);
+
+  ws.listen = function listen(json) {
+    let parsed = JSON.parse(json);
+    // console.log(parsed)
+    let type = parsed.type;
+    let data = parsed.data;
+    console.log(type);
+    switch (type) {
+      case 'join-event':
+        console.log('user attempting to join event')
+        var eventid = data.eventid;
+        var token = data.token;
+        // console.log(token)
+        getApiEvent(token).then((data) => {
+          // console.log('data from method: ');
+          console.log(data);
+
+          var eventid = data.id;
+          var userid = data.user.id;
+
+          var event = createEvent(data);
+          addEventToEventsMap(eventid, event);
+
+          var success = joinEvent(eventid, userid, socketid);
+          if (success) {
+            ws.message('joined-event-success', event);
+          }
+        });
+        break;
+      case 'send-event':
+        console.log('user sent details of event')
+        console.log(data);
+        break;
+      case 'leave-event':
+        console.log('user leaving event')
+        setUserAsLeft(socketid);
+        break;
+      case 'get-appointment':
+        var eventid = parseInt(data.eventid);
+        getApiUser(data.token).then((res) => {
+          let userid = res.id;
+
+          console.log(`user ${userid} requested active appointment for event ${eventid}`);
+          console.log(`eventid: ${eventid}, socketid: ${socketid}`)
+          var appointment = getActiveAppointmentForUser(eventid, socketid);
+          ws.message('send-appointment', appointment)
+
+        });
+        break;
+      case 'get-event':
+
+        break;
+      // case '':
+
+      //   break;
+
+      default:
+        console.log("couldn't process message");
+        break;
+    }
+  }
+
+  ws.on('message', function (message) {
+    // console.log(message);
+    ws.listen(message);
+  });
+
+  ws.on('close', function close(req) {
+    console.log('user disconnected');
+    console.log(req);
+  });
+});
+
+
+function addUserToActiveUsersMap(socketid, user) {
+  usersockets.set(socketid, user);
+  console.log('Active Users: ')
+  console.log(usersockets);
 }
 
-function getEventUsers(eventid) {
-  return getEvent(eventid).users;
+function getUserFromActiveUsersMap(socketid) {
+  return usersockets.get(socketid);
 }
 
-function getEventUser(eventid, userid) {
-  let users = getEventUsers(eventid);
-  let user = users.get(userid);
-  return user;
+function removeUserFromActiveUsersMap(socketid) {
+  usersockets.delete(socketid);
 }
 
-function getAppointmentsForUser(eventid, userid) {
+
+function createEvent(json) {
+  let event = new Event(json);
+  return event;
+}
+
+// Add the new events to the map of events with it's id as the key.
+function addEventToEventsMap(eventid, event) {
+  let size = events.size;
+  events.set(eventid, event);
+
+  // return a true value if the event map increased in size by 1
+  size + 1 == events.size ? true : false;
+}
+
+// retrieve the event with the specified id. if no event exists then return false. 
+function getEventFromEventsMap(eventid) {
+  let eid = eventid;
+  console.log(`Event id is ${eid}`);
+  let event = events.get(1)
+  // console.log(this.event);
+  if (event != null) {
+    console.log(`Event ${eid} found`);
+    return event;
+  }
+  return null;
+}
+
+// retrieve the users for an event with the specified id from the Events map.
+function getUsersForEvent(eventid) {
+  let users = getEventFromEventsMap(eventid).users;
+  if (users != null) {
+    console.log(users);
+    return users;
+  }
+  return null;
+}
+
+// get a user from an event based upon the event and user id
+function getUserFromEvent(eventid, userid) {
+  let users = getUsersForEvent(eventid);
+  var user;
+  if (users) {
+    user = users.get(userid);
+  }
+
+  if (user != null) {
+    return user;
+  }
+  return null;
+}
+
+// 
+function setUserAsLeft(socketid) {
+  let user = getUserFromActiveUsersMap(socketid);
+  user.setInactive();
+  removeUserFromActiveUsersMap(socketid);
+}
+
+// 
+function joinEvent(eventid, userid, socketid) {
+  console.log(`${eventid}  ${userid}  ${socketid}`);
+  let user = getUserFromEvent(eventid, userid);
+  if (user) {
+    user.setActive();
+    addUserToActiveUsersMap(socketid, user);
+    console.log(`user with ${userid} joined event ${eventid}`);
+    console.log(events);
+    return true;
+  }
+  console.log(`user ${userid} not found`)
+  return false
+}
+
+// retrieve the appointments for an event with the specified id from the Events map.
+function getAppointmentsForEvent(eventid) {
+  let event = getEventFromEventsMap(eventid);
+  let appointments;
+  if (event != null) {
+    appointments = event.getAppointments();
+  } else {
+    console.log(`Event ${eventid} not found`);
+  }
+  return appointments;
+}
+
+// 
+function getAppointmentsForUser(eventid, socketid) {
   // console.log(getEvent(eventid))
-  let apps = getEvent(eventid).appointments;
+  let apps = getAppointmentsForEvent(eventid);
+  console.log(getUserFromActiveUsersMap(socketid));
+  let userid = getUserFromActiveUsersMap(socketid).id;
   let userApps = [];
-  if (app != null); {
+  if (apps != null) {
+    console.log('searching appointments');
     apps.forEach((app) => {
+      console.log(`checking ${app.id}'s sender (${app.sender.id}) and recipient (${app.recipient.id})`)
       if (app.sender.id == userid || app.recipient.id == userid) {
         userApps.push(app);
       }
@@ -55,283 +232,58 @@ function getAppointmentsForUser(eventid, userid) {
   return userApps;
 }
 
-function getActiveAppointmentForUser(eventid, userid) {
+// 
+function getActiveAppointmentForUser(eventid, socketid) {
   let now = moment();
-  let apps = getAppointmentsForUser(eventid, userid);
+  let apps = getAppointmentsForUser(eventid, socketid);
   for (var i = 0; i < apps.length; i++) {
     let app = apps[i];
     let timeEnd = moment(app.time, 'DD/MM/YYYY HH:mm').add(4, 'minutes').add(30, 'seconds');
 
     if (now.isBefore(timeEnd) && now.isAfter(app.time)) {
+      console.log('Found active appointment');
       console.log(app);
       return app;
     }
   }
+  console.log('No active appointment found')
   return null;
 }
 
-function userLeftEvent(eventid, userid) {
-  let user = getEventUser(eventid, userid);
-  user.resetSocketId();
+function getApiUser() {
 }
 
-function checkUserAllowed(eventid, userid) {
-  let allowed = getEvent(eventid).userAllowed(userid);
-  return allowed;
-}
-
-function checkUserConnected(eventid, userid) {
-  let connected = getEvent(eventid).userConnected(userid);
-  return connected;
-}
-
-function checkEventExists(eventid) {
-  return events.has(eventid);
-}
-
-function addUserToEvent(eventid, user, socketid) {
-  membersockets.set(socketid, { eventid, user });
-  events.get(eventid).addUserToEvent(user, socketid);
-  // console.log(getEventUsers(eventid));
-}
-
-function userLeave(socketid) {
-  if (membersockets.has(socketid)) {
-    let event = membersockets.get(socketid).eventid;
-    let user = membersockets.get(socketid).user
-
-    userLeftEvent(event, user.id);
-
-    console.log('removed from membersockets. Event: ' + event + ' User: ' + user.id);
-
-    return [event, user];
-  }
-  return null
-}
-
-// Run when client connects
-io.on('connection', socket => {
-  console.log('user joined: ' + socket.id);
-
-  socket.on('join-event', ({ user, event }) => {
-
-    if (!checkEventExists(event)) {
-      // console.log('event does not exist')
-      // console.log('asking for event')
-      socket.emit('send-event');
+async function getApiEvent(token) {
+  console.log('getting active event from api request');
+  var api = new ApiRequests(token);
+  var eventData = await api.getActiveEvent().then((data => {
+    console.log('response received');
+    if (!data['success']) {
+      console.log(data['message']);
+      return null;
     } else {
-      if (checkUserAllowed(event, user.id)) {
-        if (!checkUserConnected(event, user.id)) {
-          addUserToEvent(event, user, socket.id);
-          console.log('added user: (' + user.id + ') ' + user.name + ' ' + socket.id + ' to event');
-        }
-      } else {
-        console.log('User not allowed to join (' + user.id + ') ' + user.name);
-        socket.disconnect();
-        // console.log(getEventUsers(event));
-      }
+      return data['data'];
     }
+  }));
+  console.log('event data received');
+  // console.log(eventData);
+  return eventData;
+}
 
-    socket.on('send-event', (json) => {
-      if (!events.has(json.event)) {
-
-        event = new Event(json, socket.id);
-        console.log(event);
-
-        events.set(json.event, event);
-
-        addUserToEvent(json.event, getEventUser(json.event, json.user.id), socket.id);
-
-        console.log('New Event ' + json.event + ' Added')
-      } else {
-        socket.emit('message', 'Event Already Exists')
-      }
-    });
-
-    // const user = userJoin(socket.id, user, event);
-
-    socket.join(event.id);
-
-    // Welcome current user
-    socket.emit('message', 'Welcome. The Event With Begin Shortly!');
-
-    // Broadcast when a user connects
-    socket.broadcast
-      .to(event.id)
-      .emit(
-        'message',
-        `${user.name} has joined the event`
-      );
-
-    // Send users and event info
-    io.to(event.id).emit('event-users', {
-      event: event.id,
-      users: event.users
-    });
-  });
-
-  socket.on('get-appointment-current', (json) => {
-    console.log('user requested active appointment')
-    if (events.has(json.event)) {
-      let app = getActiveAppointmentForUser(json.event, json.user)
-      console.log(app);
-      socket.emit('send-appointment', app);
+async function getApiUser(token) {
+  console.log(`getting user's ID from api request`);
+  var api = new ApiRequests(token);
+  var user = await api.getUser().then((data => {
+    console.log('response received');
+    if (!data['success']) {
+      console.log(data['message']);
+      return null;
     } else {
-      socket.emit('send-event');
+      return data['data'];
     }
-    // if (apps.size > 0) {
-    //   socket.emit('send-active-appointment')
-    // } else {
-    //   socket.emit('message', 'No Active Call')
-    // }
-  });
+  }));
+  console.log('user data received');
+  // console.log(eventData);
+  return user;
 
-
-  // Listen for chatMessage (Not Needed)
-  // socket.on('chatMessage', msg => {
-  //   const user = getCurrentUser(socket.id);
-  //
-  //   io.to(user.event).emit('message', formatMessage(user.user, msg));
-  // });
-
-
-  // Runs when client disconnects
-  socket.on('disconnect', () => {
-
-    const arr = userLeave(socket.id);
-    if (arr != null) {
-      const eventid = arr[0];
-      const user = arr[1];
-
-      if (user) {
-        io.to(eventid).emit(
-          'message',
-          `${user.name} has left the Event`
-        );
-
-        // Send users and event info
-        io.to(eventid).emit('event-users', {
-          event: eventid,
-          users: getEventUsers(eventid)
-        });
-      }
-    }
-  });
-});
-
-class User {
-  id;
-  name;
-  socketid;
-
-  constructor(id, name) {
-    this.id = id;
-    this.name = name;
-  }
-
-  setSocketId(socketid) {
-    this.socketid = socketid;
-  }
-
-  resetSocketId() {
-    this.socketid = null;
-  }
-}
-
-class Appointment {
-  id;
-  time;
-  sender;
-  recipient;
-  constructor(id, time, sender, recipient) {
-    this.id = id;
-    this.time = moment(time, 'DD/MM/YYYY HH:mm');
-    this.sender = sender;
-    this.recipient = recipient;
-  };
-}
-
-class Event {
-  appointments = new Map();
-  users = new Map();
-
-  constructor(json, socketid) {
-    json.users.forEach((user) => {
-      let uTemp = new User(user.id, user.name);
-      this.addUserToMap(uTemp);
-    });
-
-    this.setUserSocketId(json.user.id, socketid);
-
-    json.appointments.forEach((item) => {
-      let sender = this.users.get(item.sender.id);
-      let recipient = this.users.get(item.recipient.id);
-      var app = new Appointment(item.id, item.time, sender, recipient)
-      this.addAppointmentToMap(app);
-    });
-  }
-
-  addAppointmentToMap(appointment) {
-    this.appointments.set(appointment.id, appointment);
-  }
-
-  removeAppointmentFromMap(key) {
-    this.appointments.delete(key);
-  }
-
-  getUserFromThisEvent(userid) {
-    return this.users.get(userid);
-  }
-
-  removeUserFromEvent(user) {
-    // call class method that removes the user from the map of users
-    let userTemp = this.removeUserFromMap(user.id);
-    //return the user
-    return userTemp;
-  }
-
-  addUserToEvent(user, socketid) {
-    console.log('addusertoevent: ' + user.id + ', ' + socketid);
-    // create a new user
-    let userTemp = this.getUserFromThisEvent(user.id);
-    // set the user's socketid
-    userTemp.setSocketId(socketid);
-    console.log(userTemp);
-    // add the new user to the map of users using class method
-    this.addUserToMap(userTemp);
-  }
-
-  addUserToMap(user) {
-    // add a user model to the users map with the its id as the key
-    this.users.set(user.id, user);
-  }
-
-  removeUserFromMap(key) {
-    // get the user to be deleted
-    let user = this.users.get(key);
-    // delete the user
-    this.users.delete(key);
-    // return a copy of the user
-    return user;
-  }
-
-  setUserSocketId(userid, socketid) {
-    //get the connected user
-    let user = this.users.get(userid);
-    // set the socketid of the new user
-    user.socketid = socketid;
-  }
-
-  userAllowed(userid) {
-    // check user is a part of the event list
-    let isAllowed = this.users.has(userid);
-    //test user is a part of the event and they are not connected
-    return isAllowed;
-  }
-
-  userConnected(userid) {
-    // check the user is connected (has a socketid)
-    let isConnected = this.users.get(userid).socketid != null ? true : false;
-    return isConnected;
-  }
 }
