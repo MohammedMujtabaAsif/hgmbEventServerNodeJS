@@ -1,9 +1,7 @@
 const User = require('./user.js');
-const Appointment = require('./appointment.js');
 
 class Event {
     id = new Number();
-    appointments = new Map();
     users = new Map();
 
     constructor(json) {
@@ -14,7 +12,7 @@ class Event {
         // create a map of all users registered for this event
         json.users.forEach((user) => {
             // create a new user with infomation in json
-            let u = new User(user.id, user.display_name);
+            let u = new User(user.id, user.display_name, this.id);
 
             // call method to handle adding user to map
             this.addUserToMap(u);
@@ -23,20 +21,20 @@ class Event {
         // set the user as active
         this.setUserAsActive(json.user.id);
 
-        // create a map of all the appointments to be held for the event
-        json.appointments.forEach((item) => {
-            // get the sender from the users map
-            let sender = this.users.get(item.sender.id);
+        // // create a map of all the appointments to be held for the event
+        // json.appointments.forEach((item) => {
+        //     // get the sender from the users map
+        //     let sender = this.users.get(item.sender.id);
 
-            // get the recipient from the users map
-            let recipient = this.users.get(item.recipient.id);
+        //     // get the recipient from the users map
+        //     let recipient = this.users.get(item.recipient.id);
 
-            // create a new appointment with data from json and users map
-            var app = new Appointment(item.id, item.start_time, sender, recipient)
+        //     // create a new appointment with data from json and users map
+        //     var app = new Appointment(item.id, item.start_time, sender, recipient)
 
-            // call method to handle adding appointment to map
-            this.addAppointmentToMap(app);
-        });
+        //     // call method to handle adding appointment to map
+        //     this.addAppointmentToMap(app);
+        // });
         console.log('event created');
     }
 
@@ -81,11 +79,11 @@ class Event {
         return this.users;
     }
 
-    addUserToEvent(userid, socketid) {
+    addUserToEvent(userid, websocket) {
         console.log('adding user to event: ' + userid + ', ' + socketid);
 
         // set user as active
-        let success = this.setUserAsActive(userid);
+        let success = this.setUserAsActive(userid, websocket);
 
         // log the user's details
         console.log(userTemp);
@@ -99,13 +97,13 @@ class Event {
 
     }
 
-    setUserAsActive(userid) {
+    setUserAsActive(userid, websocket) {
         let user = this.getUserFromEvent(userid);
         if (user != null) {
-            user.setActive();
+            user.setWS(websocket);
         }
 
-        if (user.active) {
+        if (user.isActive()) {
             return true;
         }
         else {
@@ -116,7 +114,7 @@ class Event {
     setUserAsInactive() {
         let user = this.getUserFromEvent(userid);
         if (user != null) {
-            user.setInactive();
+            user.removeWS();
         }
 
         if (!user.active) {
