@@ -20,21 +20,6 @@ class Event {
 
         // set the user as active
         this.setUserAsActive(json.user.id);
-
-        // // create a map of all the appointments to be held for the event
-        // json.appointments.forEach((item) => {
-        //     // get the sender from the users map
-        //     let sender = this.users.get(item.sender.id);
-
-        //     // get the recipient from the users map
-        //     let recipient = this.users.get(item.recipient.id);
-
-        //     // create a new appointment with data from json and users map
-        //     var app = new Appointment(item.id, item.start_time, sender, recipient)
-
-        //     // call method to handle adding appointment to map
-        //     this.addAppointmentToMap(app);
-        // });
         console.log('event created');
     }
 
