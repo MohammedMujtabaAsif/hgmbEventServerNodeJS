@@ -4,6 +4,7 @@ const superagent = require('superagent')
 
 class ApiRequests {
     hostname = 'https://hgmb-laravel.herokuapp.com/api/';
+    // hostname = '127.0.0.1:8000/api/';
     token;
     headers;
 
@@ -31,7 +32,6 @@ class ApiRequests {
 
         return await superagent.get(url).set(this.headers).then(res => {
             data = res.body;
-            // console.log(data['data'])
             return data;
         }).catch(err => {
             this.handleError(err);
@@ -49,10 +49,6 @@ class ApiRequests {
             this.handleError(err);
         })
     }
-
-    // postRequest(path, data) {
-
-    // }
 
     handleError(error) {
         console.log(error);
