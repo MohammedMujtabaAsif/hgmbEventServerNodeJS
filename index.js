@@ -12,8 +12,8 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 // Set static folder
-app.use(express.static('public'));
-app.use('/socketio', express.static('node_modules/socket.io/client-dist/'));
+// app.use(express.static('public'));
+// app.use('/socketio', express.static('node_modules/socket.io/client-dist/'));
 
 // Start server on defined port
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
