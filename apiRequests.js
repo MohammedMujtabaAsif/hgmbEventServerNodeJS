@@ -3,8 +3,8 @@ const superagent = require('superagent')
 
 
 class ApiRequests {
-    hostname = 'https://hgmb-laravel.herokuapp.com/api/';
-    // hostname = '127.0.0.1:8000/api/';
+    hostname = 'https://virtualmuzmatch.co.uk/api/';
+    // hostname = 'https://d7c2-82-14-70-40.ngrok.io/api/';
     token;
     headers;
 
@@ -29,9 +29,12 @@ class ApiRequests {
     async getActiveEvent() {
         var data;
         let url = this.getUrl('events/joined/active');
+        console.log('accessing '.url);
 
         return await superagent.get(url).set(this.headers).then(res => {
             data = res.body;
+            console.log('received: ');
+            console.log(data);
             return data;
         }).catch(err => {
             this.handleError(err);
